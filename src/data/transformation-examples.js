@@ -1,6 +1,31 @@
 import { Observable } from 'rxjs';
 import { evolve, merge, prop } from 'ramda';
 
+export const toggleMap = function (spawner, mapper = (outer, inner) => inner) {
+  var source = this;
+  return new Observable(observer => {
+    let innerSub;
+    
+    return source.subscribe({
+        next(outer) {
+            if (!innerSub || innerSub.closed) {
+                innerSub = spawner(outer).subscribe(inner => observer.next(mapper(outer, inner)), e => observer.error(e));
+            }
+            else {
+                innerSub.unsubscribe();
+            }
+        },
+        error(e) {
+            observer.error(e);
+        },
+        complete() {
+            observer.complete();
+        }
+    });
+  });
+};
+Observable.prototype.toggleMap = toggleMap
+
 /* t = time, c = content */
 export const transformationExamples = {
   buffer: {
@@ -201,4 +226,16 @@ export const transformationExamples = {
         .switchMapTo(inputs[1].pluck('content'), (x, y) => '' + x + y);
     }
   },
+
+  toggleMap: {
+    label: 'obs1$.toggleMap(() => obs2$, (x, y) => "💡")',
+    inputs: [
+      [{t:0, c:'A'}, {t:42, c:'B'}, {t:55, c:'C'}],
+      [{t:0, c:1}, {t:10, c:2}, {t:20, c:3}, 25]
+    ],
+    apply: function(inputs, scheduler) {
+      return inputs[0].pluck('content')
+        .toggleMap(() => inputs[1].pluck('content'), (x, y) => '💡');
+    }
+  },  
 };
